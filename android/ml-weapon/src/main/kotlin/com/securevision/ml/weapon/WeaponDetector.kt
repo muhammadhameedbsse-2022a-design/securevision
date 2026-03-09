@@ -71,7 +71,7 @@ class WeaponDetector(
                                 label.confidence >= confidenceThreshold &&
                                         (weaponCategories.any { cat ->
                                             label.text.lowercase().contains(cat)
-                                        } || label.index == -1) // unknown object – include for review
+                                        } || label.index == -1) // unknown object - include for review
                             }
                             .map { label ->
                                 Detection(
