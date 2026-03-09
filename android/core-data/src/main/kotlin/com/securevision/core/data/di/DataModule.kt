@@ -1,0 +1,67 @@
+package com.securevision.core.data.di
+
+import android.content.Context
+import androidx.room.Room
+import com.securevision.core.data.local.AppDatabase
+import com.securevision.core.data.local.dao.AlertDao
+import com.securevision.core.data.local.dao.DetectionEventDao
+import com.securevision.core.data.local.dao.ProfileDao
+import com.securevision.core.data.repository.AlertRepositoryImpl
+import com.securevision.core.data.repository.DetectionRepositoryImpl
+import com.securevision.core.data.repository.ProfileRepositoryImpl
+import com.securevision.core.domain.repository.AlertRepository
+import com.securevision.core.domain.repository.DetectionRepository
+import com.securevision.core.domain.repository.ProfileRepository
+import dagger.Binds
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+object DatabaseModule {
+
+    @Provides
+    @Singleton
+    fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase =
+        Room.databaseBuilder(
+            context,
+            AppDatabase::class.java,
+            AppDatabase.DATABASE_NAME
+        )
+            .fallbackToDestructiveMigration()
+            .build()
+
+    @Provides
+    @Singleton
+    fun provideAlertDao(database: AppDatabase): AlertDao = database.alertDao()
+
+    @Provides
+    @Singleton
+    fun provideDetectionEventDao(database: AppDatabase): DetectionEventDao =
+        database.detectionEventDao()
+
+    @Provides
+    @Singleton
+    fun provideProfileDao(database: AppDatabase): ProfileDao = database.profileDao()
+}
+
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class RepositoryModule {
+
+    @Binds
+    @Singleton
+    abstract fun bindAlertRepository(impl: AlertRepositoryImpl): AlertRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindDetectionRepository(impl: DetectionRepositoryImpl): DetectionRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindProfileRepository(impl: ProfileRepositoryImpl): ProfileRepository
+}
