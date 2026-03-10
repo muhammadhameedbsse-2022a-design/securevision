@@ -118,36 +118,34 @@ class LiveViewModel @Inject constructor(
 
                     when (result) {
                         is DetectionResult.Success -> {
-                            val boxes = result.detections
+                            val filtered = result.detections
                                 .filter { it.confidence >= faceDetector.confidenceThreshold }
-                                .mapNotNull { it.boundingBox }
+                            val boxes = filtered.mapNotNull { it.boundingBox }
                             val processingTime = System.currentTimeMillis() - startTime
 
                             updateFps()
                             _uiState.update { it.copy(detections = boxes) }
 
                             // Persist detection events to Room
-                            for (detection in result.detections) {
-                                if (detection.confidence >= faceDetector.confidenceThreshold) {
-                                    val event = DetectionEvent(
-                                        timestamp = System.currentTimeMillis(),
-                                        cameraId = getCameraId(),
-                                        detectionType = DetectionType.FACE_UNKNOWN,
-                                        confidence = detection.confidence,
-                                        boundingBox = detection.boundingBox?.let { box ->
-                                            BoundingBoxDomain(
-                                                left = box.left,
-                                                top = box.top,
-                                                right = box.right,
-                                                bottom = box.bottom
-                                            )
-                                        },
-                                        label = detection.label,
-                                        processingTimeMs = processingTime,
-                                        metadata = detection.metadata
-                                    )
-                                    detectionRepository.insertDetectionEvent(event)
-                                }
+                            for (detection in filtered) {
+                                val event = DetectionEvent(
+                                    timestamp = System.currentTimeMillis(),
+                                    cameraId = getCameraId(),
+                                    detectionType = DetectionType.FACE_UNKNOWN,
+                                    confidence = detection.confidence,
+                                    boundingBox = detection.boundingBox?.let { box ->
+                                        BoundingBoxDomain(
+                                            left = box.left,
+                                            top = box.top,
+                                            right = box.right,
+                                            bottom = box.bottom
+                                        )
+                                    },
+                                    label = detection.label,
+                                    processingTimeMs = processingTime,
+                                    metadata = detection.metadata
+                                )
+                                detectionRepository.insertDetectionEvent(event)
                             }
                         }
                         is DetectionResult.Empty -> {
@@ -174,6 +172,9 @@ class LiveViewModel @Inject constructor(
         }
     }
 
+    // ImageProxy.toBitmap() via YUV→NV21→JPEG conversion.
+    // Uses YuvImage which is marked deprecated but remains the simplest
+    // way to convert CameraX YUV_420_888 frames without a third-party library.
     @Suppress("DEPRECATION")
     private fun ImageProxy.toBitmap(): Bitmap? {
         val yBuffer = planes[0].buffer
@@ -188,7 +189,7 @@ class LiveViewModel @Inject constructor(
         uBuffer.get(nv21, ySize + vSize, uSize)
         val yuvImage = YuvImage(nv21, ImageFormat.NV21, width, height, null)
         val out = ByteArrayOutputStream()
-        yuvImage.compressToJpeg(Rect(0, 0, width, height), 80, out)
+        yuvImage.compressToJpeg(Rect(0, 0, width, height), 50, out)
         val bytes = out.toByteArray()
         return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
     }
