@@ -105,8 +105,8 @@ class LiveViewModel @Inject constructor() : ViewModel() {
         } else {
             CameraSelector.DEFAULT_BACK_CAMERA
         }
-        _uiState.update { it.copy(cameraSelector = newSelector, detections = emptyList()) }
         cameraProvider?.unbindAll()
+        _uiState.update { it.copy(cameraSelector = newSelector, detections = emptyList(), isLoading = true) }
     }
 
     fun stopDetection() {
