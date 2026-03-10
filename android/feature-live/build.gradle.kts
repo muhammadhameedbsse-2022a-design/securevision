@@ -48,6 +48,7 @@ dependencies {
     implementation(project(":core-domain"))
     implementation(project(":core-data"))
     implementation(project(":ml-common"))
+    implementation(project(":ml-face"))
 
     // CameraX
     implementation(libs.camerax.core)

@@ -12,6 +12,9 @@ import com.securevision.core.data.repository.ProfileRepositoryImpl
 import com.securevision.core.domain.repository.AlertRepository
 import com.securevision.core.domain.repository.DetectionRepository
 import com.securevision.core.domain.repository.ProfileRepository
+import com.securevision.core.domain.usecase.GetAlertsUseCase
+import com.securevision.core.domain.usecase.GetDetectionHistoryUseCase
+import com.securevision.core.domain.usecase.GetProfilesUseCase
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -47,6 +50,23 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideProfileDao(database: AppDatabase): ProfileDao = database.profileDao()
+}
+
+@Module
+@InstallIn(SingletonComponent::class)
+object UseCaseModule {
+
+    @Provides
+    fun provideGetAlertsUseCase(alertRepository: AlertRepository): GetAlertsUseCase =
+        GetAlertsUseCase(alertRepository)
+
+    @Provides
+    fun provideGetDetectionHistoryUseCase(detectionRepository: DetectionRepository): GetDetectionHistoryUseCase =
+        GetDetectionHistoryUseCase(detectionRepository)
+
+    @Provides
+    fun provideGetProfilesUseCase(profileRepository: ProfileRepository): GetProfilesUseCase =
+        GetProfilesUseCase(profileRepository)
 }
 
 @Module
