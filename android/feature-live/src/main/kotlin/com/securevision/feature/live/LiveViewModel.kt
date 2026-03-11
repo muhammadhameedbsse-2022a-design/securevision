@@ -13,7 +13,7 @@ import androidx.lifecycle.viewModelScope
 import com.securevision.core.domain.model.BoundingBoxDomain
 import com.securevision.core.domain.model.DetectionEvent
 import com.securevision.core.domain.model.DetectionType
-import com.securevision.core.domain.repository.DetectionRepository
+import com.securevision.core.domain.usecase.SaveDetectionEventUseCase
 import com.securevision.ml.common.BoundingBox
 import com.securevision.ml.common.DetectionResult
 import com.securevision.ml.face.FaceDetector
@@ -38,7 +38,7 @@ data class LiveUiState(
 
 @HiltViewModel
 class LiveViewModel @Inject constructor(
-    private val detectionRepository: DetectionRepository
+    private val saveDetectionEventUseCase: SaveDetectionEventUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LiveUiState())
@@ -146,7 +146,7 @@ class LiveViewModel @Inject constructor(
                             processingTimeMs = processingTime,
                             metadata = detection.metadata
                         )
-                        detectionRepository.insertDetectionEvent(event)
+                        saveDetectionEventUseCase(event)
                     }
                 }
             }
