@@ -17,24 +17,36 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,6 +66,29 @@ fun ProfilesScreen(
     viewModel: ProfilesViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    var showAddProfileDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(uiState.profileSaved) {
+        if (uiState.profileSaved) {
+            snackbarHostState.showSnackbar("Profile saved successfully")
+            viewModel.clearProfileSavedFlag()
+        }
+    }
+
+    if (showAddProfileDialog) {
+        AddProfileDialog(
+            onDismiss = { showAddProfileDialog = false },
+            onSave = { name, description, isWatchlisted ->
+                viewModel.saveProfile(
+                    name = name,
+                    description = description,
+                    isWatchlisted = isWatchlisted
+                )
+                showAddProfileDialog = false
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -62,6 +97,15 @@ fun ProfilesScreen(
                 showBackButton = true,
                 onBackClick = onNavigateBack
             )
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        floatingActionButton = {
+            FloatingActionButton(onClick = { showAddProfileDialog = true }) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Add profile"
+                )
+            }
         }
     ) { paddingValues ->
         Column(
@@ -202,6 +246,13 @@ private fun ProfileCard(
                     style = MaterialTheme.typography.labelSmall,
                     color = accessLevelColor
                 )
+                if (profile.embedding != null) {
+                    Text(
+                        text = "✓ Face enrolled",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF00E676)
+                    )
+                }
             }
 
             IconButton(onClick = onDelete) {
@@ -213,4 +264,60 @@ private fun ProfileCard(
             }
         }
     }
+}
+
+@Composable
+private fun AddProfileDialog(
+    onDismiss: () -> Unit,
+    onSave: (name: String, description: String, isWatchlisted: Boolean) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var isWatchlisted by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Profile") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description (optional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = isWatchlisted,
+                        onCheckedChange = { isWatchlisted = it }
+                    )
+                    Text(
+                        text = "Add to watchlist",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSave(name.trim(), description.trim(), isWatchlisted) },
+                enabled = name.isNotBlank()
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
