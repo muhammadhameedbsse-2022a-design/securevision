@@ -12,9 +12,11 @@ import com.securevision.core.data.repository.ProfileRepositoryImpl
 import com.securevision.core.domain.repository.AlertRepository
 import com.securevision.core.domain.repository.DetectionRepository
 import com.securevision.core.domain.repository.ProfileRepository
+import com.securevision.core.domain.usecase.AlertCooldownManager
 import com.securevision.core.domain.usecase.GetAlertsUseCase
 import com.securevision.core.domain.usecase.GetDetectionHistoryUseCase
 import com.securevision.core.domain.usecase.GetProfilesUseCase
+import com.securevision.core.domain.usecase.SaveAlertUseCase
 import com.securevision.core.domain.usecase.SaveDetectionEventUseCase
 import dagger.Binds
 import dagger.Module
@@ -72,6 +74,15 @@ object UseCaseModule {
     @Provides
     fun provideGetProfilesUseCase(profileRepository: ProfileRepository): GetProfilesUseCase =
         GetProfilesUseCase(profileRepository)
+
+    @Provides
+    fun provideSaveAlertUseCase(alertRepository: AlertRepository): SaveAlertUseCase =
+        SaveAlertUseCase(alertRepository)
+
+    @Provides
+    @Singleton
+    fun provideAlertCooldownManager(): AlertCooldownManager =
+        AlertCooldownManager()
 }
 
 @Module

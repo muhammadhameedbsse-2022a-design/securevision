@@ -10,14 +10,20 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.securevision.core.domain.model.Alert
+import com.securevision.core.domain.model.AlertSeverity
 import com.securevision.core.domain.model.BoundingBoxDomain
 import com.securevision.core.domain.model.DetectionEvent
 import com.securevision.core.domain.model.DetectionType
+import com.securevision.core.domain.usecase.AlertCooldownManager
+import com.securevision.core.domain.usecase.SaveAlertUseCase
 import com.securevision.core.domain.usecase.SaveDetectionEventUseCase
 import com.securevision.ml.common.BoundingBox
+import com.securevision.ml.common.Detection
 import com.securevision.ml.common.DetectionResult
 import com.securevision.ml.face.FaceDetector
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,7 +44,10 @@ data class LiveUiState(
 
 @HiltViewModel
 class LiveViewModel @Inject constructor(
-    private val saveDetectionEventUseCase: SaveDetectionEventUseCase
+    private val saveDetectionEventUseCase: SaveDetectionEventUseCase,
+    private val saveAlertUseCase: SaveAlertUseCase,
+    private val alertCooldownManager: AlertCooldownManager,
+    @ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LiveUiState())
@@ -53,6 +62,9 @@ class LiveViewModel @Inject constructor(
 
     /** Guards against duplicate [bindCameraUseCases] calls. */
     private var isCameraBound = false
+
+    /** Vibration / sound feedback for fired alerts. */
+    private val feedbackProvider = AlertFeedbackProvider(appContext)
 
     private val faceDetector = FaceDetector(confidenceThreshold = 0.7f)
 
@@ -108,8 +120,8 @@ class LiveViewModel @Inject constructor(
 
     /**
      * Callback invoked by [FaceFrameAnalyzer] with each detection result.
-     * Applies quality filtering via [DetectionMapper], updates UI state and
-     * persists detection events to Room.
+     * Applies quality filtering via [DetectionMapper], updates UI state,
+     * persists detection events to Room, and fires alerts with cooldown.
      */
     private fun handleDetectionResult(result: DetectionResult) {
         val startTime = System.currentTimeMillis()
@@ -126,13 +138,14 @@ class LiveViewModel @Inject constructor(
                 updateFps()
                 _uiState.update { it.copy(detections = boxes) }
 
-                // Persist detection events to Room
+                // Persist detection events and trigger alerts
                 viewModelScope.launch {
                     for (detection in filtered) {
+                        val detectionType = resolveDetectionType(detection)
                         val event = DetectionEvent(
                             timestamp = System.currentTimeMillis(),
                             cameraId = getCameraId(),
-                            detectionType = DetectionType.FACE_UNKNOWN,
+                            detectionType = detectionType,
                             confidence = detection.confidence,
                             boundingBox = detection.boundingBox?.let { box ->
                                 BoundingBoxDomain(
@@ -147,6 +160,9 @@ class LiveViewModel @Inject constructor(
                             metadata = detection.metadata
                         )
                         saveDetectionEventUseCase(event)
+
+                        // Trigger alert with cooldown
+                        triggerAlertIfNeeded(detection, detectionType)
                     }
                 }
             }
@@ -162,6 +178,70 @@ class LiveViewModel @Inject constructor(
                 // Detector not ready yet; skip frame
             }
         }
+    }
+
+    /**
+     * Maps a raw ML [Detection] to the appropriate [DetectionType].
+     * Weapon labels produce [DetectionType.WEAPON_DETECTED]; face labels
+     * produce [DetectionType.FACE_UNKNOWN].
+     */
+    private fun resolveDetectionType(detection: Detection): DetectionType {
+        val label = detection.label.lowercase()
+        return when {
+            label.contains("weapon") || label.contains("gun") ||
+                label.contains("knife") -> DetectionType.WEAPON_DETECTED
+            else -> DetectionType.FACE_UNKNOWN
+        }
+    }
+
+    /**
+     * Creates and persists an [Alert] when the cooldown for the given
+     * [detectionType] has elapsed, then triggers haptic/sound feedback.
+     */
+    private suspend fun triggerAlertIfNeeded(
+        detection: Detection,
+        detectionType: DetectionType
+    ) {
+        val (severity, cooldownMs) = when (detectionType) {
+            DetectionType.WEAPON_DETECTED -> AlertSeverity.CRITICAL to
+                AlertCooldownManager.WEAPON_COOLDOWN_MS
+            DetectionType.FACE_UNKNOWN -> AlertSeverity.MEDIUM to
+                AlertCooldownManager.UNKNOWN_PERSON_COOLDOWN_MS
+            else -> return // No alert for other types currently
+        }
+
+        if (!alertCooldownManager.shouldTriggerAlert(detectionType, cooldownMs)) return
+
+        val alert = Alert(
+            title = when (detectionType) {
+                DetectionType.WEAPON_DETECTED -> "Weapon Detected"
+                DetectionType.FACE_UNKNOWN -> "Unknown Person"
+                else -> "Detection Alert"
+            },
+            description = buildAlertDescription(detection, detectionType),
+            severity = severity,
+            timestamp = System.currentTimeMillis(),
+            cameraId = getCameraId(),
+            detectionType = detectionType
+        )
+
+        saveAlertUseCase(alert)
+        feedbackProvider.triggerVibration(severity)
+        feedbackProvider.triggerSound(severity)
+    }
+
+    private fun buildAlertDescription(
+        detection: Detection,
+        detectionType: DetectionType
+    ): String = when (detectionType) {
+        DetectionType.WEAPON_DETECTED ->
+            "A weapon was detected on camera ${getCameraId()} " +
+                "with ${(detection.confidence * 100).toInt()}% confidence."
+        DetectionType.FACE_UNKNOWN ->
+            "An unknown person was detected on camera ${getCameraId()} " +
+                "with ${(detection.confidence * 100).toInt()}% confidence."
+        else ->
+            "${detection.label} detected on camera ${getCameraId()}."
     }
 
     private fun updateFps() {
