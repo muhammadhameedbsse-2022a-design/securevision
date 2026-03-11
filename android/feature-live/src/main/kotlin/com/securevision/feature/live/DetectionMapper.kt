@@ -10,7 +10,11 @@ import com.securevision.ml.common.Detection
  */
 object DetectionMapper {
 
-    /** Default minimum normalised area (width × height) for a face to be kept. */
+    /**
+     * Default minimum normalised area (width × height) for a face bounding box.
+     * Coordinates are in the [0, 1] range relative to image dimensions, so an
+     * area of 0.005 corresponds to roughly 0.5 % of the image.
+     */
     private const val DEFAULT_MIN_FACE_AREA = 0.005f
 
     /**
