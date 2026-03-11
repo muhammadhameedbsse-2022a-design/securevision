@@ -15,13 +15,20 @@ import com.securevision.core.domain.model.AlertSeverity
 import com.securevision.core.domain.model.BoundingBoxDomain
 import com.securevision.core.domain.model.DetectionEvent
 import com.securevision.core.domain.model.DetectionType
+import com.securevision.core.domain.model.FaceEmbedding
+import com.securevision.core.domain.model.MatchResult
+import com.securevision.core.domain.model.Profile
 import com.securevision.core.domain.usecase.AlertCooldownManager
+import com.securevision.core.domain.usecase.MatchFaceUseCase
 import com.securevision.core.domain.usecase.SaveAlertUseCase
 import com.securevision.core.domain.usecase.SaveDetectionEventUseCase
+import com.securevision.core.domain.usecase.SaveProfileUseCase
 import com.securevision.ml.common.BoundingBox
 import com.securevision.ml.common.Detection
 import com.securevision.ml.common.DetectionResult
+import com.securevision.ml.common.FaceEmbeddingGenerator
 import com.securevision.ml.face.FaceDetector
+import com.securevision.ml.face.SimpleFaceEmbeddingGenerator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,6 +46,8 @@ data class LiveUiState(
     val cameraSelector: CameraSelector = CameraSelector.DEFAULT_BACK_CAMERA,
     val detections: List<BoundingBox> = emptyList(),
     val fps: Float = 0f,
+    val lastMatchResult: MatchResult? = null,
+    val profileSaved: Boolean = false,
     val error: String? = null
 )
 
@@ -46,6 +55,8 @@ data class LiveUiState(
 class LiveViewModel @Inject constructor(
     private val saveDetectionEventUseCase: SaveDetectionEventUseCase,
     private val saveAlertUseCase: SaveAlertUseCase,
+    private val matchFaceUseCase: MatchFaceUseCase,
+    private val saveProfileUseCase: SaveProfileUseCase,
     private val alertCooldownManager: AlertCooldownManager,
     @ApplicationContext private val appContext: Context
 ) : ViewModel() {
@@ -67,6 +78,12 @@ class LiveViewModel @Inject constructor(
     private val feedbackProvider = AlertFeedbackProvider(appContext)
 
     private val faceDetector = FaceDetector(confidenceThreshold = 0.7f)
+
+    private val embeddingGenerator: FaceEmbeddingGenerator = SimpleFaceEmbeddingGenerator()
+
+    /** Holds the most recent detection for save-as-profile use. */
+    @Volatile
+    private var lastDetection: Detection? = null
 
     private val frameAnalyzer = FaceFrameAnalyzer(
         faceDetector = faceDetector,
@@ -141,7 +158,34 @@ class LiveViewModel @Inject constructor(
                 // Persist detection events and trigger alerts
                 viewModelScope.launch {
                     for (detection in filtered) {
-                        val detectionType = resolveDetectionType(detection)
+                        // Generate embedding and attempt to match against known profiles
+                        val embedding = embeddingGenerator.generateEmbedding(detection)
+                        val matchResult = if (embedding != null) {
+                            try {
+                                matchFaceUseCase(FaceEmbedding(embedding))
+                            } catch (_: IllegalArgumentException) {
+                                // Dimension mismatch between embeddings
+                                MatchResult.noMatch()
+                            }
+                        } else {
+                            MatchResult.noMatch()
+                        }
+
+                        _uiState.update { it.copy(lastMatchResult = matchResult) }
+                        lastDetection = detection
+
+                        val detectionType = if (matchResult.isMatch) {
+                            DetectionType.FACE_RECOGNIZED
+                        } else {
+                            resolveDetectionType(detection)
+                        }
+
+                        val label = if (matchResult.isMatch && matchResult.profile != null) {
+                            matchResult.profile.name
+                        } else {
+                            detection.label
+                        }
+
                         val event = DetectionEvent(
                             timestamp = System.currentTimeMillis(),
                             cameraId = getCameraId(),
@@ -155,7 +199,7 @@ class LiveViewModel @Inject constructor(
                                     bottom = box.bottom
                                 )
                             },
-                            label = detection.label,
+                            label = label,
                             processingTimeMs = processingTime,
                             metadata = detection.metadata
                         )
@@ -276,6 +320,41 @@ class LiveViewModel @Inject constructor(
         val newRunning = !_uiState.value.isRunning
         _uiState.update { it.copy(isRunning = newRunning) }
         syncAnalyzerEnabled()
+    }
+
+    /**
+     * Saves the most recently detected face as a named profile with its embedding.
+     */
+    fun saveDetectedFaceAsProfile(name: String, description: String = "") {
+        val detection = lastDetection ?: run {
+            _uiState.update { it.copy(error = "No face detection available to save") }
+            return
+        }
+        val embedding = embeddingGenerator.generateEmbedding(detection) ?: run {
+            _uiState.update { it.copy(error = "Could not generate embedding for detected face") }
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                val now = System.currentTimeMillis()
+                val profile = Profile(
+                    name = name,
+                    description = description,
+                    createdAt = now,
+                    updatedAt = now,
+                    embedding = embedding
+                )
+                saveProfileUseCase(profile)
+                _uiState.update { it.copy(profileSaved = true) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message) }
+            }
+        }
+    }
+
+    fun clearProfileSavedFlag() {
+        _uiState.update { it.copy(profileSaved = false) }
     }
 
     fun flipCamera() {
