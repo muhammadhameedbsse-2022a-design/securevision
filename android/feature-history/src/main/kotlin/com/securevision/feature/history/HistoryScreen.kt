@@ -105,7 +105,7 @@ fun HistoryScreen(
                             color = MaterialTheme.colorScheme.error
                         )
                         Text(
-                            text = uiState.error ?: "",
+                            text = uiState.error.orEmpty(),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
