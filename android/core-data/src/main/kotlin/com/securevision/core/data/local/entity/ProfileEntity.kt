@@ -68,6 +68,6 @@ data class ProfileEntity(
         }
 
         private fun FloatArray.toStorageString(): String =
-            joinToString(",") { it.toString() }
+            joinToString(",") { String.format("%.6f", it) }
     }
 }

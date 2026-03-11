@@ -36,7 +36,7 @@ class SimpleFaceEmbeddingGenerator : FaceEmbeddingGenerator {
             leftEyeOpen,
             rightEyeOpen,
             box.width / (box.height + EPSILON),  // aspect ratio
-            box.area
+            box.area.coerceIn(0f, 1f)            // already normalised; clamped for safety
         )
 
         return l2Normalize(raw)

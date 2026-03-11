@@ -163,7 +163,8 @@ class LiveViewModel @Inject constructor(
                         val matchResult = if (embedding != null) {
                             try {
                                 matchFaceUseCase(FaceEmbedding(embedding))
-                            } catch (_: Exception) {
+                            } catch (_: IllegalArgumentException) {
+                                // Dimension mismatch between embeddings
                                 MatchResult.noMatch()
                             }
                         } else {
