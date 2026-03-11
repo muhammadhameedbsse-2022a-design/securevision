@@ -2,9 +2,11 @@ package com.securevision.feature.profiles
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.securevision.core.domain.model.AccessLevel
 import com.securevision.core.domain.model.Profile
 import com.securevision.core.domain.repository.ProfileRepository
 import com.securevision.core.domain.usecase.GetProfilesUseCase
+import com.securevision.core.domain.usecase.SaveProfileUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,12 +21,14 @@ data class ProfilesUiState(
     val filteredProfiles: List<Profile> = emptyList(),
     val searchQuery: String = "",
     val showWatchlistOnly: Boolean = false,
+    val profileSaved: Boolean = false,
     val error: String? = null
 )
 
 @HiltViewModel
 class ProfilesViewModel @Inject constructor(
     private val getProfilesUseCase: GetProfilesUseCase,
+    private val saveProfileUseCase: SaveProfileUseCase,
     private val profileRepository: ProfileRepository
 ) : ViewModel() {
 
@@ -65,6 +69,39 @@ class ProfilesViewModel @Inject constructor(
         viewModelScope.launch {
             profileRepository.deleteProfile(profileId)
         }
+    }
+
+    /**
+     * Saves a new profile with an optional face embedding.
+     */
+    fun saveProfile(
+        name: String,
+        description: String = "",
+        embedding: FloatArray? = null,
+        isWatchlisted: Boolean = false
+    ) {
+        viewModelScope.launch {
+            try {
+                val now = System.currentTimeMillis()
+                val profile = Profile(
+                    name = name,
+                    description = description,
+                    isWatchlisted = isWatchlisted,
+                    accessLevel = AccessLevel.STANDARD,
+                    createdAt = now,
+                    updatedAt = now,
+                    embedding = embedding
+                )
+                saveProfileUseCase(profile)
+                _uiState.update { it.copy(profileSaved = true) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message) }
+            }
+        }
+    }
+
+    fun clearProfileSavedFlag() {
+        _uiState.update { it.copy(profileSaved = false) }
     }
 
     private fun applyFilters(
