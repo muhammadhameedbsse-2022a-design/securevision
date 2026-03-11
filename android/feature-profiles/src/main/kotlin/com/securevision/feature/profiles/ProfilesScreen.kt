@@ -248,7 +248,7 @@ private fun ProfileCard(
                 )
                 if (profile.embedding != null) {
                     Text(
-                        text = "✓ Face enrolled",
+                        text = "Face enrolled",
                         style = MaterialTheme.typography.labelSmall,
                         color = Color(0xFF00E676)
                     )

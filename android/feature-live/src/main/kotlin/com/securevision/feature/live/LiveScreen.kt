@@ -68,6 +68,10 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.securevision.core.ui.components.SecureVisionTopBar
 
+private val KnownFaceColor = Color(0xFF00E676)
+private val UnknownFaceColor = Color(0xFFFF1744)
+private val DefaultBoxColor = Color(0xFF00E5FF)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LiveScreen(
@@ -166,9 +170,9 @@ fun LiveScreen(
                 // Detection overlay - bounding boxes
                 val matchResult = uiState.lastMatchResult
                 val boxColor = when {
-                    matchResult?.isMatch == true -> Color(0xFF00E676) // green for known
-                    uiState.detections.isNotEmpty() -> Color(0xFFFF1744) // red for unknown
-                    else -> Color(0xFF00E5FF)
+                    matchResult?.isMatch == true -> KnownFaceColor
+                    uiState.detections.isNotEmpty() -> UnknownFaceColor
+                    else -> DefaultBoxColor
                 }
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     uiState.detections.forEach { box ->
@@ -327,11 +331,11 @@ private fun LiveControlsOverlay(
                 Text(
                     text = if (isRunning) "● DETECTING" else "○ PAUSED",
                     style = MaterialTheme.typography.labelMedium,
-                    color = if (isRunning) Color(0xFF00E676) else Color(0xFFFF1744),
+                    color = if (isRunning) KnownFaceColor else UnknownFaceColor,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "$detectionCount objects  •  ${String.format("%.1f", fps)} FPS",
+                    text = "$detectionCount objects  •  ${"%.1f".format(fps)} FPS",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.White.copy(alpha = 0.7f)
                 )
@@ -377,11 +381,11 @@ private fun MatchResultOverlay(
     val text: String
     when {
         matchResult?.isMatch == true -> {
-            backgroundColor = Color(0xFF00E676).copy(alpha = 0.85f)
-            text = "Known: ${matchResult.profile?.name ?: "—"} (${String.format("%.0f%%", matchResult.similarity * 100)})"
+            backgroundColor = KnownFaceColor.copy(alpha = 0.85f)
+            text = "Known: ${matchResult.profile?.name ?: "—"} (${"%.0f".format(matchResult.similarity * 100)}%)"
         }
         else -> {
-            backgroundColor = Color(0xFFFF1744).copy(alpha = 0.85f)
+            backgroundColor = UnknownFaceColor.copy(alpha = 0.85f)
             text = "Unknown Person"
         }
     }
