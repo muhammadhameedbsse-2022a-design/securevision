@@ -42,6 +42,10 @@ android {
 }
 
 dependencies {
+        // Use api so modules depending on core-ui (like :app) can see Material styles
+        api(libs.androidx.compose.material3)
+        api(libs.google.material)
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
 

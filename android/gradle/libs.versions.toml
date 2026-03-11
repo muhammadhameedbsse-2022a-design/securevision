@@ -1,5 +1,5 @@
 [versions]
-agp = "8.2.2"
+agp = "8.13.2"
 kotlin = "1.9.22"
 composeBom = "2024.02.00"
 composeCompiler = "1.5.8"
@@ -21,9 +21,11 @@ datastorePrefs = "1.0.0"
 gson = "2.10.1"
 
 [libraries]
+google-material = { group = "com.google.android.material", name = "material", version = "1.11.0" }
 # AndroidX Core
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+
 
 # Compose BOM
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
@@ -71,14 +73,17 @@ kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 
 # ML Kit
 mlkit-face-detection = { group = "com.google.mlkit", name = "face-detection", version.ref = "mlkitFaceDetection" }
-mlkit-object-detection = { group = "com.google.mlkit", name = "object-detection", version.ref = "mlkitObjectDetection" }
-mlkit-object-detection-custom = { group = "com.google.mlkit", name = "object-detection-custom", version.ref = "mlkitObjectDetection" }
+mlkit-objectdetection = { group = "com.google.mlkit", name = "object-detection", version.ref = "mlkitObjectDetection" }
+mlkit-objectdetection-custom = { group = "com.google.mlkit", name = "object-detection-custom", version.ref = "mlkitObjectDetection" }
 
 # DataStore
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastorePrefs" }
 
 # Gson
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
+
+# javax.inject
+javax-inject = { group = "javax.inject", name = "javax.inject", version = "1" }
 
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "jUnit" }

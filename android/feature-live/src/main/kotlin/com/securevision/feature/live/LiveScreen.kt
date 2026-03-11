@@ -10,6 +10,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -114,38 +115,65 @@ fun LiveScreen(
                 key(uiState.cameraSelector) {
                     CameraPreview(
                         modifier = Modifier.fillMaxSize(),
-                        cameraSelector = uiState.cameraSelector,
                         onPreviewView = { previewView ->
                             viewModel.startCamera(context, lifecycleOwner, previewView)
                         }
                     )
                 }
 
-                // Detection overlay - bounding boxes
+                // Detection overlay - bounding boxes with labels
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    uiState.detections.forEach { box ->
+                    uiState.detections.forEach { detection ->
+                        val box = detection.boundingBox ?: return@forEach
                         val strokeWidth = 3.dp.toPx()
                         val left = box.left * size.width
                         val top = box.top * size.height
                         val boxWidth = (box.right - box.left) * size.width
                         val boxHeight = (box.bottom - box.top) * size.height
 
+                        val boxColor = if (detection.label.contains("Face", ignoreCase = true))
+                            Color(0xFF00E5FF) else Color(0xFFFF1744)
+
                         drawRect(
-                            color = Color(0xFF00E5FF),
+                            color = boxColor,
                             topLeft = Offset(left, top),
                             size = Size(boxWidth, boxHeight),
                             style = Stroke(width = strokeWidth)
                         )
                         // Corner accents
                         val cornerLen = 20.dp.toPx()
-                        drawLine(Color(0xFF00E5FF), Offset(left, top), Offset(left + cornerLen, top), strokeWidth * 2)
-                        drawLine(Color(0xFF00E5FF), Offset(left, top), Offset(left, top + cornerLen), strokeWidth * 2)
-                        drawLine(Color(0xFF00E5FF), Offset(left + boxWidth, top), Offset(left + boxWidth - cornerLen, top), strokeWidth * 2)
-                        drawLine(Color(0xFF00E5FF), Offset(left + boxWidth, top), Offset(left + boxWidth, top + cornerLen), strokeWidth * 2)
-                        drawLine(Color(0xFF00E5FF), Offset(left, top + boxHeight), Offset(left + cornerLen, top + boxHeight), strokeWidth * 2)
-                        drawLine(Color(0xFF00E5FF), Offset(left, top + boxHeight), Offset(left, top + boxHeight - cornerLen), strokeWidth * 2)
-                        drawLine(Color(0xFF00E5FF), Offset(left + boxWidth, top + boxHeight), Offset(left + boxWidth - cornerLen, top + boxHeight), strokeWidth * 2)
-                        drawLine(Color(0xFF00E5FF), Offset(left + boxWidth, top + boxHeight), Offset(left + boxWidth, top + boxHeight - cornerLen), strokeWidth * 2)
+                        drawLine(boxColor, Offset(left, top), Offset(left + cornerLen, top), strokeWidth * 2)
+                        drawLine(boxColor, Offset(left, top), Offset(left, top + cornerLen), strokeWidth * 2)
+                        drawLine(boxColor, Offset(left + boxWidth, top), Offset(left + boxWidth - cornerLen, top), strokeWidth * 2)
+                        drawLine(boxColor, Offset(left + boxWidth, top), Offset(left + boxWidth, top + cornerLen), strokeWidth * 2)
+                        drawLine(boxColor, Offset(left, top + boxHeight), Offset(left + cornerLen, top + boxHeight), strokeWidth * 2)
+                        drawLine(boxColor, Offset(left, top + boxHeight), Offset(left, top + boxHeight - cornerLen), strokeWidth * 2)
+                        drawLine(boxColor, Offset(left + boxWidth, top + boxHeight), Offset(left + boxWidth - cornerLen, top + boxHeight), strokeWidth * 2)
+                        drawLine(boxColor, Offset(left + boxWidth, top + boxHeight), Offset(left + boxWidth, top + boxHeight - cornerLen), strokeWidth * 2)
+                    }
+                }
+
+                // Detection labels rendered outside Canvas
+                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                    val parentWidth = maxWidth
+                    val parentHeight = maxHeight
+                    uiState.detections.forEach { detection ->
+                        val box = detection.boundingBox ?: return@forEach
+                        val labelColor = if (detection.label.contains("Face", ignoreCase = true))
+                            Color(0xFF00E5FF) else Color(0xFFFF1744)
+                        Text(
+                            text = "${detection.label} ${String.format("%.0f%%", detection.confidence * 100)}",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .padding(
+                                    start = parentWidth * box.left,
+                                    top = parentHeight * box.top
+                                )
+                                .background(labelColor.copy(alpha = 0.75f), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
                     }
                 }
 
@@ -225,7 +253,6 @@ private fun CameraPermissionRequest(
 @Composable
 private fun CameraPreview(
     modifier: Modifier = Modifier,
-    cameraSelector: CameraSelector,
     onPreviewView: (PreviewView) -> Unit
 ) {
     AndroidView(

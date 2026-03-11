@@ -40,7 +40,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 
     // ML Kit Object Detection
-    implementation(libs.mlkit.object.detection)
+    implementation(libs.mlkit.objectdetection)
 
     testImplementation(libs.junit)
 }

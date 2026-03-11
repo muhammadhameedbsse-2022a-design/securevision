@@ -10,8 +10,14 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.securevision.feature.live.analyzer.FrameAnalyzer
+import com.securevision.ml.attributes.AttributeClassifier
 import com.securevision.ml.common.BoundingBox
+import com.securevision.ml.common.Detection
+import com.securevision.ml.face.FaceDetector
+import com.securevision.ml.weapon.WeaponDetector
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,13 +30,17 @@ data class LiveUiState(
     val isLoading: Boolean = true,
     val isRunning: Boolean = false,
     val cameraSelector: CameraSelector = CameraSelector.DEFAULT_BACK_CAMERA,
-    val detections: List<BoundingBox> = emptyList(),
+    val detections: List<Detection> = emptyList(),
     val fps: Float = 0f,
     val error: String? = null
 )
 
 @HiltViewModel
-class LiveViewModel @Inject constructor() : ViewModel() {
+class LiveViewModel @Inject constructor(
+    faceDetector: FaceDetector,
+    weaponDetector: WeaponDetector,
+    attributeClassifier: AttributeClassifier
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LiveUiState())
     val uiState: StateFlow<LiveUiState> = _uiState.asStateFlow()
@@ -38,6 +48,19 @@ class LiveViewModel @Inject constructor() : ViewModel() {
     private var cameraProvider: ProcessCameraProvider? = null
     private val cameraExecutor = Executors.newSingleThreadExecutor()
     private var frameTimestamps = ArrayDeque<Long>(30)
+
+    private val frameAnalyzer = FrameAnalyzer(
+        faceDetector = faceDetector,
+        weaponDetector = weaponDetector,
+        attributeClassifier = attributeClassifier,
+        weaponFrameInterval = 3
+    )
+
+    init {
+        viewModelScope.launch(Dispatchers.IO) {
+            frameAnalyzer.initialize()
+        }
+    }
 
     fun startCamera(
         context: Context,
@@ -65,9 +88,18 @@ class LiveViewModel @Inject constructor() : ViewModel() {
             .also { analysis ->
                 analysis.setAnalyzer(cameraExecutor) { imageProxy ->
                     if (_uiState.value.isRunning) {
-                        processFrame()
+                        viewModelScope.launch {
+                            try {
+                                val detections = frameAnalyzer.analyze(imageProxy)
+                                updateFps()
+                                _uiState.update { it.copy(detections = detections) }
+                            } finally {
+                                imageProxy.close()
+                            }
+                        }
+                    } else {
+                        imageProxy.close()
                     }
-                    imageProxy.close()
                 }
             }
 
@@ -80,7 +112,7 @@ class LiveViewModel @Inject constructor() : ViewModel() {
         }
     }
 
-    private fun processFrame() {
+    private fun updateFps() {
         val now = System.currentTimeMillis()
         frameTimestamps.addLast(now)
         if (frameTimestamps.size > 30) frameTimestamps.removeFirst()
@@ -90,9 +122,7 @@ class LiveViewModel @Inject constructor() : ViewModel() {
             if (duration > 0) (frameTimestamps.size - 1) * 1000f / duration else 0f
         } else 0f
 
-        viewModelScope.launch {
-            _uiState.update { it.copy(fps = fps) }
-        }
+        _uiState.update { it.copy(fps = fps) }
     }
 
     fun toggleDetection() {
@@ -116,6 +146,7 @@ class LiveViewModel @Inject constructor() : ViewModel() {
 
     override fun onCleared() {
         super.onCleared()
+        frameAnalyzer.close()
         cameraExecutor.shutdown()
     }
 }

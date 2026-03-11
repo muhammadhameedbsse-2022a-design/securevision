@@ -101,6 +101,11 @@ class FaceDetector(
 
         if (!box.isValid()) return null
 
+        // ML Kit does not provide a per-face confidence score; use 1.0 and
+        // let the caller's threshold decide whether to keep the detection.
+        val confidence = 1.0f
+        if (confidence < threshold) return null
+
         val metadata = buildMap<String, String> {
             trackingId?.let { put("trackingId", it.toString()) }
             headEulerAngleX.let { put("headPitch", String.format("%.2f", it)) }
@@ -119,7 +124,7 @@ class FaceDetector(
 
         return Detection(
             label = "Face",
-            confidence = 1.0f, // ML Kit face detection does not return a per-face confidence score
+            confidence = confidence,
             boundingBox = box,
             metadata = metadata
         )

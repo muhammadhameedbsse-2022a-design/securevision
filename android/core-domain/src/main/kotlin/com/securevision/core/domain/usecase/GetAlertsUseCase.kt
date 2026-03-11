@@ -4,8 +4,9 @@ import com.securevision.core.domain.model.Alert
 import com.securevision.core.domain.model.AlertSeverity
 import com.securevision.core.domain.repository.AlertRepository
 import kotlinx.coroutines.flow.Flow
+import javax.inject.Inject
 
-class GetAlertsUseCase(private val alertRepository: AlertRepository) {
+class GetAlertsUseCase @Inject constructor(private val alertRepository: AlertRepository) {
 
     /** Returns all alerts ordered by timestamp descending. */
     operator fun invoke(): Flow<List<Alert>> = alertRepository.getAlerts()
