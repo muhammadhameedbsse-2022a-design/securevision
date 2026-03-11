@@ -1,14 +1,8 @@
 package com.securevision.feature.live
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.ImageFormat
-import android.graphics.Rect
-import android.graphics.YuvImage
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
@@ -29,9 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.io.ByteArrayOutputStream
 import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 
 data class LiveUiState(
@@ -63,7 +55,12 @@ class LiveViewModel @Inject constructor(
     private var isCameraBound = false
 
     private val faceDetector = FaceDetector(confidenceThreshold = 0.7f)
-    private val isProcessing = AtomicBoolean(false)
+
+    private val frameAnalyzer = FaceFrameAnalyzer(
+        faceDetector = faceDetector,
+        coroutineScope = viewModelScope,
+        onResult = ::handleDetectionResult
+    )
 
     init {
         viewModelScope.launch {
@@ -95,15 +92,7 @@ class LiveViewModel @Inject constructor(
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .build()
             .also { analysis ->
-                analysis.setAnalyzer(cameraExecutor) { imageProxy ->
-                    if (_uiState.value.isRunning && !_uiState.value.isPaused &&
-                        isProcessing.compareAndSet(false, true)
-                    ) {
-                        analyzeFrame(imageProxy)
-                    } else {
-                        imageProxy.close()
-                    }
-                }
+                analysis.setAnalyzer(cameraExecutor, frameAnalyzer)
             }
 
         try {
@@ -117,92 +106,62 @@ class LiveViewModel @Inject constructor(
         }
     }
 
-    private fun analyzeFrame(imageProxy: ImageProxy) {
+    /**
+     * Callback invoked by [FaceFrameAnalyzer] with each detection result.
+     * Applies quality filtering via [DetectionMapper], updates UI state and
+     * persists detection events to Room.
+     */
+    private fun handleDetectionResult(result: DetectionResult) {
         val startTime = System.currentTimeMillis()
 
-        viewModelScope.launch {
-            try {
-                val bitmap = imageProxy.toBitmap()
-                if (bitmap != null) {
-                    val rotation = imageProxy.imageInfo.rotationDegrees
-                    val result = faceDetector.classify(bitmap, rotation)
+        when (result) {
+            is DetectionResult.Success -> {
+                val filtered = DetectionMapper.filterByQuality(
+                    detections = result.detections,
+                    minConfidence = faceDetector.confidenceThreshold
+                )
+                val boxes = DetectionMapper.toBoundingBoxes(filtered)
+                val processingTime = System.currentTimeMillis() - startTime
 
-                    when (result) {
-                        is DetectionResult.Success -> {
-                            val filtered = result.detections
-                                .filter { it.confidence >= faceDetector.confidenceThreshold }
-                            val boxes = filtered.mapNotNull { it.boundingBox }
-                            val processingTime = System.currentTimeMillis() - startTime
+                updateFps()
+                _uiState.update { it.copy(detections = boxes) }
 
-                            updateFps()
-                            _uiState.update { it.copy(detections = boxes) }
-
-                            // Persist detection events to Room
-                            for (detection in filtered) {
-                                val event = DetectionEvent(
-                                    timestamp = System.currentTimeMillis(),
-                                    cameraId = getCameraId(),
-                                    detectionType = DetectionType.FACE_UNKNOWN,
-                                    confidence = detection.confidence,
-                                    boundingBox = detection.boundingBox?.let { box ->
-                                        BoundingBoxDomain(
-                                            left = box.left,
-                                            top = box.top,
-                                            right = box.right,
-                                            bottom = box.bottom
-                                        )
-                                    },
-                                    label = detection.label,
-                                    processingTimeMs = processingTime,
-                                    metadata = detection.metadata
+                // Persist detection events to Room
+                viewModelScope.launch {
+                    for (detection in filtered) {
+                        val event = DetectionEvent(
+                            timestamp = System.currentTimeMillis(),
+                            cameraId = getCameraId(),
+                            detectionType = DetectionType.FACE_UNKNOWN,
+                            confidence = detection.confidence,
+                            boundingBox = detection.boundingBox?.let { box ->
+                                BoundingBoxDomain(
+                                    left = box.left,
+                                    top = box.top,
+                                    right = box.right,
+                                    bottom = box.bottom
                                 )
-                                detectionRepository.insertDetectionEvent(event)
-                            }
-                        }
-                        is DetectionResult.Empty -> {
-                            updateFps()
-                            _uiState.update { it.copy(detections = emptyList()) }
-                        }
-                        is DetectionResult.Error -> {
-                            updateFps()
-                            _uiState.update { it.copy(detections = emptyList()) }
-                        }
-                        is DetectionResult.NotInitialized -> {
-                            // Detector not ready yet; skip frame
-                        }
+                            },
+                            label = detection.label,
+                            processingTimeMs = processingTime,
+                            metadata = detection.metadata
+                        )
+                        detectionRepository.insertDetectionEvent(event)
                     }
-
-                    if (!bitmap.isRecycled) bitmap.recycle()
-                } else {
-                    updateFps()
                 }
-            } finally {
-                imageProxy.close()
-                isProcessing.set(false)
+            }
+            is DetectionResult.Empty -> {
+                updateFps()
+                _uiState.update { it.copy(detections = emptyList()) }
+            }
+            is DetectionResult.Error -> {
+                updateFps()
+                _uiState.update { it.copy(detections = emptyList()) }
+            }
+            is DetectionResult.NotInitialized -> {
+                // Detector not ready yet; skip frame
             }
         }
-    }
-
-    // ImageProxy.toBitmap() via YUV→NV21→JPEG conversion.
-    // Uses YuvImage which is marked deprecated but remains the simplest
-    // way to convert CameraX YUV_420_888 frames without a third-party library.
-    @Suppress("DEPRECATION")
-    private fun ImageProxy.toBitmap(): Bitmap? {
-        val yBuffer = planes[0].buffer
-        val uBuffer = planes[1].buffer
-        val vBuffer = planes[2].buffer
-        val ySize = yBuffer.remaining()
-        val uSize = uBuffer.remaining()
-        val vSize = vBuffer.remaining()
-        val nv21 = ByteArray(ySize + uSize + vSize)
-        yBuffer.get(nv21, 0, ySize)
-        vBuffer.get(nv21, ySize, vSize)
-        uBuffer.get(nv21, ySize + vSize, uSize)
-        val yuvImage = YuvImage(nv21, ImageFormat.NV21, width, height, null)
-        val out = ByteArrayOutputStream()
-        yuvImage.compressToJpeg(Rect(0, 0, width, height), 50, out)
-        val bytes = out.toByteArray()
-        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
     }
 
     private fun updateFps() {
@@ -227,7 +186,9 @@ class LiveViewModel @Inject constructor(
     }
 
     fun toggleDetection() {
-        _uiState.update { it.copy(isRunning = !it.isRunning) }
+        val newRunning = !_uiState.value.isRunning
+        _uiState.update { it.copy(isRunning = newRunning) }
+        syncAnalyzerEnabled()
     }
 
     fun flipCamera() {
@@ -245,6 +206,7 @@ class LiveViewModel @Inject constructor(
     fun onLifecyclePause() {
         wasRunningBeforePause = _uiState.value.isRunning
         _uiState.update { it.copy(isPaused = true) }
+        syncAnalyzerEnabled()
     }
 
     /** Called when the host lifecycle moves to ON_RESUME. */
@@ -255,12 +217,20 @@ class LiveViewModel @Inject constructor(
                 isRunning = wasRunningBeforePause || it.isRunning
             )
         }
+        syncAnalyzerEnabled()
     }
 
     fun stopDetection() {
         cameraProvider?.unbindAll()
         isCameraBound = false
         _uiState.update { it.copy(isRunning = false) }
+        syncAnalyzerEnabled()
+    }
+
+    /** Keeps [FaceFrameAnalyzer.isEnabled] in sync with the current UI state. */
+    private fun syncAnalyzerEnabled() {
+        val state = _uiState.value
+        frameAnalyzer.isEnabled = state.isRunning && !state.isPaused
     }
 
     override fun onCleared() {
