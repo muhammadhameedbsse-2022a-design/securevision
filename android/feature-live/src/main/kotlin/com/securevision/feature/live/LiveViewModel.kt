@@ -183,16 +183,26 @@ class LiveViewModel @Inject constructor(
     /**
      * Maps a raw ML [Detection] to the appropriate [DetectionType].
      * Weapon labels produce [DetectionType.WEAPON_DETECTED]; face labels
-     * produce [DetectionType.FACE_UNKNOWN].
+     * produce [DetectionType.FACE_UNKNOWN]; unrecognised labels are left
+     * unmapped (null) so that no spurious alert is created.
      */
     private fun resolveDetectionType(detection: Detection): DetectionType {
         val label = detection.label.lowercase()
         return when {
             label.contains("weapon") || label.contains("gun") ||
                 label.contains("knife") -> DetectionType.WEAPON_DETECTED
-            else -> DetectionType.FACE_UNKNOWN
+            label.contains("face") -> DetectionType.FACE_UNKNOWN
+            else -> DetectionType.FACE_UNKNOWN // fallback for current face-only pipeline
         }
     }
+
+    /**
+     * Determines whether the given [detectionType] should produce an alert.
+     * Only weapon and unknown-face detections are alerted on today.
+     */
+    private fun isAlertableDetection(detectionType: DetectionType): Boolean =
+        detectionType == DetectionType.WEAPON_DETECTED ||
+            detectionType == DetectionType.FACE_UNKNOWN
 
     /**
      * Creates and persists an [Alert] when the cooldown for the given
@@ -202,46 +212,43 @@ class LiveViewModel @Inject constructor(
         detection: Detection,
         detectionType: DetectionType
     ) {
+        if (!isAlertableDetection(detectionType)) return
+
         val (severity, cooldownMs) = when (detectionType) {
             DetectionType.WEAPON_DETECTED -> AlertSeverity.CRITICAL to
                 AlertCooldownManager.WEAPON_COOLDOWN_MS
             DetectionType.FACE_UNKNOWN -> AlertSeverity.MEDIUM to
                 AlertCooldownManager.UNKNOWN_PERSON_COOLDOWN_MS
-            else -> return // No alert for other types currently
+            else -> return
         }
 
         if (!alertCooldownManager.shouldTriggerAlert(detectionType, cooldownMs)) return
 
+        val confidencePct = (detection.confidence * 100).toInt()
+        val camera = getCameraId()
         val alert = Alert(
             title = when (detectionType) {
                 DetectionType.WEAPON_DETECTED -> "Weapon Detected"
                 DetectionType.FACE_UNKNOWN -> "Unknown Person"
                 else -> "Detection Alert"
             },
-            description = buildAlertDescription(detection, detectionType),
+            description = when (detectionType) {
+                DetectionType.WEAPON_DETECTED ->
+                    "A weapon was detected on camera $camera with $confidencePct% confidence."
+                DetectionType.FACE_UNKNOWN ->
+                    "An unknown person was detected on camera $camera with $confidencePct% confidence."
+                else ->
+                    "${detection.label} detected on camera $camera."
+            },
             severity = severity,
             timestamp = System.currentTimeMillis(),
-            cameraId = getCameraId(),
+            cameraId = camera,
             detectionType = detectionType
         )
 
         saveAlertUseCase(alert)
         feedbackProvider.triggerVibration(severity)
         feedbackProvider.triggerSound(severity)
-    }
-
-    private fun buildAlertDescription(
-        detection: Detection,
-        detectionType: DetectionType
-    ): String = when (detectionType) {
-        DetectionType.WEAPON_DETECTED ->
-            "A weapon was detected on camera ${getCameraId()} " +
-                "with ${(detection.confidence * 100).toInt()}% confidence."
-        DetectionType.FACE_UNKNOWN ->
-            "An unknown person was detected on camera ${getCameraId()} " +
-                "with ${(detection.confidence * 100).toInt()}% confidence."
-        else ->
-            "${detection.label} detected on camera ${getCameraId()}."
     }
 
     private fun updateFps() {

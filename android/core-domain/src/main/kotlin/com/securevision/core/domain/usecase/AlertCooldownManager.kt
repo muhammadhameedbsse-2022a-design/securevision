@@ -19,19 +19,25 @@ class AlertCooldownManager(
      * Returns `true` if enough time has elapsed since the last alert of the
      * given [type], and atomically records the current time. Returns `false`
      * (and does nothing) when the cooldown has not yet expired.
+     *
+     * Thread-safe: uses [ConcurrentHashMap.compute] for atomic
+     * check-and-update so concurrent callers cannot both pass the gate.
      */
     fun shouldTriggerAlert(
         type: DetectionType,
         cooldownMs: Long = defaultCooldownMs
     ): Boolean {
         val now = System.currentTimeMillis()
-        val lastTime = lastAlertTimes[type] ?: 0L
-        return if (now - lastTime >= cooldownMs) {
-            lastAlertTimes[type] = now
-            true
-        } else {
-            false
+        var triggered = false
+        lastAlertTimes.compute(type) { _, lastTime ->
+            if (now - (lastTime ?: 0L) >= cooldownMs) {
+                triggered = true
+                now
+            } else {
+                lastTime
+            }
         }
+        return triggered
     }
 
     /** Resets cooldown state for all detection types. */
