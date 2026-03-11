@@ -252,7 +252,7 @@ class LiveViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 isPaused = false,
-                isRunning = if (wasRunningBeforePause) true else it.isRunning
+                isRunning = wasRunningBeforePause || it.isRunning
             )
         }
     }
