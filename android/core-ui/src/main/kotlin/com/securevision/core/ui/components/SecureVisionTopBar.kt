@@ -1,7 +1,7 @@
 package com.securevision.core.ui.components
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -21,6 +21,7 @@ fun SecureVisionTopBar(
     showBackButton: Boolean = false,
     showNotificationsButton: Boolean = false,
     onBackClick: () -> Unit = {},
+    onMenuClick: () -> Unit = {},
     onNotificationsClick: () -> Unit = {}
 ) {
     CenterAlignedTopAppBar(
@@ -36,13 +37,13 @@ fun SecureVisionTopBar(
             if (showBackButton) {
                 IconButton(onClick = onBackClick) {
                     Icon(
-                        imageVector = Icons.Default.ArrowBack,
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Navigate back",
                         tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
             } else {
-                IconButton(onClick = {}) {
+                IconButton(onClick = onMenuClick) {
                     Icon(
                         imageVector = Icons.Default.Menu,
                         contentDescription = "Menu",

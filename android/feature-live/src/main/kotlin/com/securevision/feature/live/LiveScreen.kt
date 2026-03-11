@@ -160,7 +160,6 @@ fun LiveScreen(
                 key(uiState.cameraSelector) {
                     CameraPreview(
                         modifier = Modifier.fillMaxSize(),
-                        cameraSelector = uiState.cameraSelector,
                         onPreviewView = { previewView ->
                             viewModel.startCamera(context, lifecycleOwner, previewView)
                         }
@@ -175,12 +174,16 @@ fun LiveScreen(
                     else -> DefaultBoxColor
                 }
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    uiState.detections.forEach { box ->
+                    uiState.detections.forEach { detection ->
+                        val box = detection.boundingBox ?: return@forEach
                         val strokeWidth = 3.dp.toPx()
                         val left = box.left * size.width
                         val top = box.top * size.height
                         val boxWidth = (box.right - box.left) * size.width
                         val boxHeight = (box.bottom - box.top) * size.height
+
+                        val boxColor = if (detection.label.contains("Face", ignoreCase = true))
+                            Color(0xFF00E5FF) else Color(0xFFFF1744)
 
                         drawRect(
                             color = boxColor,
@@ -289,7 +292,6 @@ private fun CameraPermissionRequest(
 @Composable
 private fun CameraPreview(
     modifier: Modifier = Modifier,
-    cameraSelector: CameraSelector,
     onPreviewView: (PreviewView) -> Unit
 ) {
     AndroidView(

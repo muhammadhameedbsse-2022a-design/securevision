@@ -82,9 +82,9 @@ class AttributeClassifier(
      * Runs the attribute classifier model on the given [bitmap].
      * Replace with real TFLite interpreter invocation once the model asset is available.
      */
+    @Suppress("UNUSED_PARAMETER")
     private fun runInference(bitmap: Bitmap): List<AttributePrediction> {
-        // Stub: returns empty list until a real model is integrated.
-        // Real implementation:
+        // TODO: replace with real TFLite interpreter invocation once the model asset is available.
         // 1. Pre-process bitmap: resize to model input size, normalise to [-1, 1]
         // 2. Run interpreter.run(inputBuffer, outputBuffer)
         // 3. Post-process output tensor into AttributePrediction list

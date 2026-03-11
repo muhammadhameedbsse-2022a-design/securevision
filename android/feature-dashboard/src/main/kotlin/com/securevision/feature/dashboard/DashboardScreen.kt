@@ -56,6 +56,7 @@ fun DashboardScreen(
     onNavigateToHistory: () -> Unit,
     onNavigateToProfiles: () -> Unit,
     onNavigateToSettings: () -> Unit,
+    onMenuClick: () -> Unit = {},
     viewModel: DashboardViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -65,6 +66,7 @@ fun DashboardScreen(
             SecureVisionTopBar(
                 title = "SecureVision",
                 showNotificationsButton = true,
+                onMenuClick = onMenuClick,
                 onNotificationsClick = onNavigateToAlerts
             )
         },

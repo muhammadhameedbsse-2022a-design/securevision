@@ -44,7 +44,7 @@ data class LiveUiState(
     val isRunning: Boolean = false,
     val isPaused: Boolean = false,
     val cameraSelector: CameraSelector = CameraSelector.DEFAULT_BACK_CAMERA,
-    val detections: List<BoundingBox> = emptyList(),
+    val detections: List<Detection> = emptyList(),
     val fps: Float = 0f,
     val lastMatchResult: MatchResult? = null,
     val profileSaved: Boolean = false,
@@ -401,6 +401,7 @@ class LiveViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
+        frameAnalyzer.close()
         cameraExecutor.shutdown()
         faceDetector.close()
     }
