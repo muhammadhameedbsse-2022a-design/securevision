@@ -57,6 +57,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.securevision.core.ui.components.SecureVisionTopBar
 
@@ -91,8 +93,20 @@ fun LiveScreen(
         }
     }
 
-    DisposableEffect(Unit) {
-        onDispose { viewModel.stopDetection() }
+    // Observe lifecycle for pause / resume detection support
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_PAUSE -> viewModel.onLifecyclePause()
+                Lifecycle.Event.ON_RESUME -> viewModel.onLifecycleResume()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            viewModel.stopDetection()
+        }
     }
 
     Scaffold(

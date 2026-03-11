@@ -37,6 +37,7 @@ import javax.inject.Inject
 data class LiveUiState(
     val isLoading: Boolean = true,
     val isRunning: Boolean = false,
+    val isPaused: Boolean = false,
     val cameraSelector: CameraSelector = CameraSelector.DEFAULT_BACK_CAMERA,
     val detections: List<BoundingBox> = emptyList(),
     val fps: Float = 0f,
@@ -54,6 +55,12 @@ class LiveViewModel @Inject constructor(
     private var cameraProvider: ProcessCameraProvider? = null
     private val cameraExecutor = Executors.newSingleThreadExecutor()
     private var frameTimestamps = ArrayDeque<Long>(30)
+
+    /** Tracks whether detection was active before a lifecycle pause. */
+    private var wasRunningBeforePause = false
+
+    /** Guards against duplicate [bindCameraUseCases] calls. */
+    private var isCameraBound = false
 
     private val faceDetector = FaceDetector(confidenceThreshold = 0.7f)
     private val isProcessing = AtomicBoolean(false)
@@ -89,7 +96,9 @@ class LiveViewModel @Inject constructor(
             .build()
             .also { analysis ->
                 analysis.setAnalyzer(cameraExecutor) { imageProxy ->
-                    if (_uiState.value.isRunning && isProcessing.compareAndSet(false, true)) {
+                    if (_uiState.value.isRunning && !_uiState.value.isPaused &&
+                        isProcessing.compareAndSet(false, true)
+                    ) {
                         analyzeFrame(imageProxy)
                     } else {
                         imageProxy.close()
@@ -100,8 +109,10 @@ class LiveViewModel @Inject constructor(
         try {
             provider.unbindAll()
             provider.bindToLifecycle(lifecycleOwner, selector, preview, imageAnalysis)
+            isCameraBound = true
             _uiState.update { it.copy(isLoading = false, isRunning = true) }
         } catch (e: Exception) {
+            isCameraBound = false
             _uiState.update { it.copy(isLoading = false, error = e.message) }
         }
     }
@@ -226,11 +237,29 @@ class LiveViewModel @Inject constructor(
             CameraSelector.DEFAULT_BACK_CAMERA
         }
         cameraProvider?.unbindAll()
+        isCameraBound = false
         _uiState.update { it.copy(cameraSelector = newSelector, detections = emptyList(), isLoading = true) }
+    }
+
+    /** Called when the host lifecycle moves to ON_PAUSE. */
+    fun onLifecyclePause() {
+        wasRunningBeforePause = _uiState.value.isRunning
+        _uiState.update { it.copy(isPaused = true) }
+    }
+
+    /** Called when the host lifecycle moves to ON_RESUME. */
+    fun onLifecycleResume() {
+        _uiState.update {
+            it.copy(
+                isPaused = false,
+                isRunning = wasRunningBeforePause || it.isRunning
+            )
+        }
     }
 
     fun stopDetection() {
         cameraProvider?.unbindAll()
+        isCameraBound = false
         _uiState.update { it.copy(isRunning = false) }
     }
 
