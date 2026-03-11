@@ -9,6 +9,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -35,14 +36,23 @@ class HistoryViewModel @Inject constructor(
 
     private fun loadHistory() {
         viewModelScope.launch {
-            getDetectionHistoryUseCase().collect { events ->
-                _uiState.update { state ->
-                    val filtered = if (state.selectedType != null) {
-                        events.filter { it.detectionType == state.selectedType }
-                    } else events
-                    state.copy(isLoading = false, events = events, filteredEvents = filtered)
+            getDetectionHistoryUseCase()
+                .catch { e ->
+                    _uiState.update { it.copy(isLoading = false, error = e.message) }
                 }
-            }
+                .collect { events ->
+                    _uiState.update { state ->
+                        val filtered = if (state.selectedType != null) {
+                            events.filter { it.detectionType == state.selectedType }
+                        } else events
+                        state.copy(
+                            isLoading = false,
+                            events = events,
+                            filteredEvents = filtered,
+                            error = null
+                        )
+                    }
+                }
         }
     }
 

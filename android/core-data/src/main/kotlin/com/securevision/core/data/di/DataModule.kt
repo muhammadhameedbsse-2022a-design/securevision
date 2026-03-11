@@ -15,6 +15,7 @@ import com.securevision.core.domain.repository.ProfileRepository
 import com.securevision.core.domain.usecase.GetAlertsUseCase
 import com.securevision.core.domain.usecase.GetDetectionHistoryUseCase
 import com.securevision.core.domain.usecase.GetProfilesUseCase
+import com.securevision.core.domain.usecase.SaveDetectionEventUseCase
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -63,6 +64,10 @@ object UseCaseModule {
     @Provides
     fun provideGetDetectionHistoryUseCase(detectionRepository: DetectionRepository): GetDetectionHistoryUseCase =
         GetDetectionHistoryUseCase(detectionRepository)
+
+    @Provides
+    fun provideSaveDetectionEventUseCase(detectionRepository: DetectionRepository): SaveDetectionEventUseCase =
+        SaveDetectionEventUseCase(detectionRepository)
 
     @Provides
     fun provideGetProfilesUseCase(profileRepository: ProfileRepository): GetProfilesUseCase =
