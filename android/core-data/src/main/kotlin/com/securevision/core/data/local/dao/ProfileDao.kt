@@ -34,4 +34,7 @@ interface ProfileDao {
 
     @Query("SELECT COUNT(*) FROM profiles")
     fun getProfileCount(): Flow<Int>
+
+    @Query("SELECT * FROM profiles WHERE embeddingData IS NOT NULL ORDER BY name ASC")
+    fun getProfilesWithEmbeddings(): Flow<List<ProfileEntity>>
 }

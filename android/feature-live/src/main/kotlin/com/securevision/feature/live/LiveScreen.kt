@@ -10,7 +10,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,7 +24,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.FlipCameraAndroid
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -34,8 +35,12 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -58,8 +63,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.securevision.core.ui.components.SecureVisionTopBar
+
+private val KnownFaceColor = Color(0xFF00E676)
+private val UnknownFaceColor = Color(0xFFFF1744)
+private val DefaultBoxColor = Color(0xFF00E5FF)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,6 +81,8 @@ fun LiveScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    var showSaveProfileDialog by remember { mutableStateOf(false) }
 
     var hasCameraPermission by remember {
         mutableStateOf(
@@ -92,8 +105,39 @@ fun LiveScreen(
         }
     }
 
-    DisposableEffect(Unit) {
-        onDispose { viewModel.stopDetection() }
+    // Show snackbar when a profile is saved
+    LaunchedEffect(uiState.profileSaved) {
+        if (uiState.profileSaved) {
+            snackbarHostState.showSnackbar("Profile saved successfully")
+            viewModel.clearProfileSavedFlag()
+        }
+    }
+
+    // Observe lifecycle for pause / resume detection support
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_PAUSE -> viewModel.onLifecyclePause()
+                Lifecycle.Event.ON_RESUME -> viewModel.onLifecycleResume()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            viewModel.stopDetection()
+        }
+    }
+
+    // Save-as-profile dialog
+    if (showSaveProfileDialog) {
+        SaveProfileDialog(
+            onDismiss = { showSaveProfileDialog = false },
+            onSave = { name, description ->
+                viewModel.saveDetectedFaceAsProfile(name, description)
+                showSaveProfileDialog = false
+            }
+        )
     }
 
     Scaffold(
@@ -103,7 +147,8 @@ fun LiveScreen(
                 showBackButton = true,
                 onBackClick = onNavigateBack
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -121,7 +166,13 @@ fun LiveScreen(
                     )
                 }
 
-                // Detection overlay - bounding boxes with labels
+                // Detection overlay - bounding boxes
+                val matchResult = uiState.lastMatchResult
+                val boxColor = when {
+                    matchResult?.isMatch == true -> KnownFaceColor
+                    uiState.detections.isNotEmpty() -> UnknownFaceColor
+                    else -> DefaultBoxColor
+                }
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     uiState.detections.forEach { detection ->
                         val box = detection.boundingBox ?: return@forEach
@@ -153,28 +204,14 @@ fun LiveScreen(
                     }
                 }
 
-                // Detection labels rendered outside Canvas
-                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                    val parentWidth = maxWidth
-                    val parentHeight = maxHeight
-                    uiState.detections.forEach { detection ->
-                        val box = detection.boundingBox ?: return@forEach
-                        val labelColor = if (detection.label.contains("Face", ignoreCase = true))
-                            Color(0xFF00E5FF) else Color(0xFFFF1744)
-                        Text(
-                            text = "${detection.label} ${String.format("%.0f%%", detection.confidence * 100)}",
-                            color = Color.White,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier
-                                .padding(
-                                    start = parentWidth * box.left,
-                                    top = parentHeight * box.top
-                                )
-                                .background(labelColor.copy(alpha = 0.75f), RoundedCornerShape(4.dp))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
+                // Match result overlay
+                if (uiState.detections.isNotEmpty()) {
+                    MatchResultOverlay(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 8.dp, start = 16.dp, end = 16.dp),
+                        matchResult = matchResult
+                    )
                 }
 
                 // Loading spinner while camera starts
@@ -197,8 +234,10 @@ fun LiveScreen(
                     isRunning = uiState.isRunning,
                     fps = uiState.fps,
                     detectionCount = uiState.detections.size,
+                    hasDetection = uiState.detections.isNotEmpty(),
                     onToggleDetection = viewModel::toggleDetection,
-                    onFlipCamera = viewModel::flipCamera
+                    onFlipCamera = viewModel::flipCamera,
+                    onSaveProfile = { showSaveProfileDialog = true }
                 )
             } else {
                 // Camera permission not granted
@@ -272,8 +311,10 @@ private fun LiveControlsOverlay(
     isRunning: Boolean,
     fps: Float,
     detectionCount: Int,
+    hasDetection: Boolean,
     onToggleDetection: () -> Unit,
-    onFlipCamera: () -> Unit
+    onFlipCamera: () -> Unit,
+    onSaveProfile: () -> Unit
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -292,14 +333,25 @@ private fun LiveControlsOverlay(
                 Text(
                     text = if (isRunning) "● DETECTING" else "○ PAUSED",
                     style = MaterialTheme.typography.labelMedium,
-                    color = if (isRunning) Color(0xFF00E676) else Color(0xFFFF1744),
+                    color = if (isRunning) KnownFaceColor else UnknownFaceColor,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "$detectionCount objects  •  ${String.format("%.1f", fps)} FPS",
+                    text = "$detectionCount objects  •  ${"%.1f".format(fps)} FPS",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.White.copy(alpha = 0.7f)
                 )
+            }
+            if (hasDetection) {
+                IconButton(onClick = onSaveProfile) {
+                    Icon(
+                        imageVector = Icons.Default.PersonAdd,
+                        contentDescription = "Save as profile",
+                        tint = Color.White,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(4.dp))
             }
             IconButton(onClick = onToggleDetection) {
                 Icon(
@@ -320,4 +372,86 @@ private fun LiveControlsOverlay(
             }
         }
     }
+}
+
+@Composable
+private fun MatchResultOverlay(
+    modifier: Modifier = Modifier,
+    matchResult: com.securevision.core.domain.model.MatchResult?
+) {
+    val backgroundColor: Color
+    val text: String
+    when {
+        matchResult?.isMatch == true -> {
+            backgroundColor = KnownFaceColor.copy(alpha = 0.85f)
+            text = "Known: ${matchResult.profile?.name ?: "—"} (${"%.0f".format(matchResult.similarity * 100)}%)"
+        }
+        else -> {
+            backgroundColor = UnknownFaceColor.copy(alpha = 0.85f)
+            text = "Unknown Person"
+        }
+    }
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = backgroundColor),
+        modifier = modifier
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            style = MaterialTheme.typography.labelLarge,
+            color = Color.White,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun SaveProfileDialog(
+    onDismiss: () -> Unit,
+    onSave: (name: String, description: String) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Save as Profile") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Save the detected face as a known profile for future recognition.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description (optional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSave(name.trim(), description.trim()) },
+                enabled = name.isNotBlank()
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }

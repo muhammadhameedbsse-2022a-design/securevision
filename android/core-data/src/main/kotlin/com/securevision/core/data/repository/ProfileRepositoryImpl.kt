@@ -35,4 +35,7 @@ class ProfileRepositoryImpl @Inject constructor(
 
     override fun getProfileCount(): Flow<Int> =
         profileDao.getProfileCount()
+
+    override fun getProfilesWithEmbeddings(): Flow<List<Profile>> =
+        profileDao.getProfilesWithEmbeddings().map { it.map(ProfileEntity::toDomain) }
 }

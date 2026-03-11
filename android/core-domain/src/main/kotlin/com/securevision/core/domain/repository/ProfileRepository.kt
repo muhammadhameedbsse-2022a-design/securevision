@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.Flow
 interface ProfileRepository {
     fun getProfiles(): Flow<List<Profile>>
     fun getWatchlistedProfiles(): Flow<List<Profile>>
+    fun getProfilesWithEmbeddings(): Flow<List<Profile>>
     suspend fun getProfileById(id: Long): Profile?
     suspend fun searchProfiles(query: String): List<Profile>
     suspend fun insertProfile(profile: Profile): Long
