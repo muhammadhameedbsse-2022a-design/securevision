@@ -23,7 +23,6 @@ import com.securevision.core.domain.usecase.MatchFaceUseCase
 import com.securevision.core.domain.usecase.SaveAlertUseCase
 import com.securevision.core.domain.usecase.SaveDetectionEventUseCase
 import com.securevision.core.domain.usecase.SaveProfileUseCase
-import com.securevision.ml.common.BoundingBox
 import com.securevision.ml.common.Detection
 import com.securevision.ml.common.DetectionResult
 import com.securevision.ml.common.FaceEmbeddingGenerator
@@ -152,11 +151,10 @@ class LiveViewModel @Inject constructor(
                     detections = result.detections,
                     minConfidence = faceDetector.confidenceThreshold
                 )
-                val boxes = DetectionMapper.toBoundingBoxes(filtered)
                 val processingTime = System.currentTimeMillis() - startTime
 
                 updateFps()
-                _uiState.update { it.copy(detections = boxes) }
+                _uiState.update { it.copy(detections = filtered) }
 
                 // Persist detection events and trigger alerts
                 viewModelScope.launch {
