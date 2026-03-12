@@ -47,7 +47,5 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE detection_events ADD COLUMN gender TEXT DEFAULT NULL")
             }
         }
-            }
-        }
     }
 }
