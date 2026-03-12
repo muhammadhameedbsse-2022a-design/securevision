@@ -3,6 +3,8 @@ package com.securevision.core.data.local
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.securevision.core.data.local.dao.AlertDao
 import com.securevision.core.data.local.dao.DetectionEventDao
 import com.securevision.core.data.local.dao.ProfileDao
@@ -28,5 +30,16 @@ abstract class AppDatabase : RoomDatabase() {
 
     companion object {
         const val DATABASE_NAME = "securevision.db"
+
+        /** Migration from v2 to v3: add age, gender, photoURI columns. */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE profiles ADD COLUMN age INTEGER DEFAULT NULL")
+                db.execSQL("ALTER TABLE profiles ADD COLUMN gender TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE profiles ADD COLUMN photoURI TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE detection_events ADD COLUMN age INTEGER DEFAULT NULL")
+                db.execSQL("ALTER TABLE detection_events ADD COLUMN gender TEXT DEFAULT NULL")
+            }
+        }
     }
 }
