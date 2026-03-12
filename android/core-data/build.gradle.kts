@@ -43,7 +43,7 @@ kapt {
 }
 
 dependencies {
-    implementation(project(":core-domain"))
+    api(project(":core-domain"))
 
     implementation(libs.androidx.core.ktx)
 
