@@ -49,6 +49,8 @@ dependencies {
     implementation(project(":core-data"))
     implementation(project(":ml-common"))
     implementation(project(":ml-face"))
+    implementation(project(":ml-weapon"))
+    implementation(project(":ml-attributes"))
 
     // CameraX
     implementation(libs.camerax.core)

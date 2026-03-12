@@ -168,11 +168,6 @@ fun LiveScreen(
 
                 // Detection overlay - bounding boxes
                 val matchResult = uiState.lastMatchResult
-                val boxColor = when {
-                    matchResult?.isMatch == true -> KnownFaceColor
-                    uiState.detections.isNotEmpty() -> UnknownFaceColor
-                    else -> DefaultBoxColor
-                }
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     uiState.detections.forEach { detection ->
                         val box = detection.boundingBox ?: return@forEach
@@ -182,8 +177,15 @@ fun LiveScreen(
                         val boxWidth = (box.right - box.left) * size.width
                         val boxHeight = (box.bottom - box.top) * size.height
 
-                        val boxColor = if (detection.label.contains("Face", ignoreCase = true))
-                            Color(0xFF00E5FF) else Color(0xFFFF1744)
+                        val isFace = detection.label.contains("Face", ignoreCase = true)
+                        val boxColor = when {
+                            isFace && matchResult?.isMatch == true -> KnownFaceColor
+                            isFace -> UnknownFaceColor
+                            detection.label.contains("weapon", ignoreCase = true) ||
+                                detection.label.contains("gun", ignoreCase = true) ||
+                                detection.label.contains("knife", ignoreCase = true) -> Color(0xFFFF1744)
+                            else -> DefaultBoxColor
+                        }
 
                         drawRect(
                             color = boxColor,

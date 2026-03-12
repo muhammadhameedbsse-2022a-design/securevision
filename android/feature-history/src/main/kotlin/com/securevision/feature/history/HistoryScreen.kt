@@ -214,6 +214,15 @@ private fun DetectionEventCard(event: DetectionEvent) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                if (event.metadata.isNotEmpty()) {
+                    val attrText = event.metadata.entries.joinToString("  •  ") { "${it.key}: ${it.value}" }
+                    Text(
+                        text = attrText,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
             // Confidence badge
             Text(

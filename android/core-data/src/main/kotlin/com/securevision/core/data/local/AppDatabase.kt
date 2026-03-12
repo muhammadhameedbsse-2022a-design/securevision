@@ -31,6 +31,12 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         const val DATABASE_NAME = "securevision.db"
 
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE profiles ADD COLUMN embeddingData TEXT")
+            }
+        }
+
         /** Migration from v2 to v3: add age, gender, photoURI columns. */
         val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -39,6 +45,8 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE profiles ADD COLUMN photoURI TEXT DEFAULT NULL")
                 db.execSQL("ALTER TABLE detection_events ADD COLUMN age INTEGER DEFAULT NULL")
                 db.execSQL("ALTER TABLE detection_events ADD COLUMN gender TEXT DEFAULT NULL")
+            }
+        }
             }
         }
     }

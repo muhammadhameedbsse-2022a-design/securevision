@@ -4,9 +4,8 @@ import com.securevision.core.domain.model.DetectionEvent
 import com.securevision.core.domain.model.DetectionType
 import com.securevision.core.domain.repository.DetectionRepository
 import kotlinx.coroutines.flow.Flow
-import javax.inject.Inject
 
-class GetDetectionHistoryUseCase @Inject constructor(private val detectionRepository: DetectionRepository) {
+class GetDetectionHistoryUseCase(private val detectionRepository: DetectionRepository) {
 
     /** Returns the full detection history ordered by timestamp descending. */
     operator fun invoke(): Flow<List<DetectionEvent>> = detectionRepository.getDetectionEvents()

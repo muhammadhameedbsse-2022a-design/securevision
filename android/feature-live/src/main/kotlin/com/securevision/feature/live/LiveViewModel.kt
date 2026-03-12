@@ -17,17 +17,18 @@ import com.securevision.core.domain.model.DetectionEvent
 import com.securevision.core.domain.model.DetectionType
 import com.securevision.core.domain.model.FaceEmbedding
 import com.securevision.core.domain.model.MatchResult
-import com.securevision.core.domain.model.Profile
 import com.securevision.core.domain.usecase.AlertCooldownManager
 import com.securevision.core.domain.usecase.MatchFaceUseCase
 import com.securevision.core.domain.usecase.SaveAlertUseCase
 import com.securevision.core.domain.usecase.SaveDetectionEventUseCase
 import com.securevision.core.domain.usecase.SaveProfileUseCase
+import com.securevision.core.domain.model.Profile
 import com.securevision.ml.common.Detection
 import com.securevision.ml.common.DetectionResult
 import com.securevision.ml.common.FaceEmbeddingGenerator
 import com.securevision.ml.face.FaceDetector
 import com.securevision.ml.face.SimpleFaceEmbeddingGenerator
+import com.securevision.feature.live.analyzer.FrameAnalyzer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,6 +59,8 @@ class LiveViewModel @Inject constructor(
     private val matchFaceUseCase: MatchFaceUseCase,
     private val saveProfileUseCase: SaveProfileUseCase,
     private val alertCooldownManager: AlertCooldownManager,
+    private val faceDetector: FaceDetector,
+    private val fullFrameAnalyzer: FrameAnalyzer,
     @ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
@@ -77,8 +80,6 @@ class LiveViewModel @Inject constructor(
     /** Vibration / sound feedback for fired alerts. */
     private val feedbackProvider = AlertFeedbackProvider(appContext)
 
-    private val faceDetector = FaceDetector(confidenceThreshold = 0.7f)
-
     private val embeddingGenerator: FaceEmbeddingGenerator = SimpleFaceEmbeddingGenerator()
 
     /** Holds the most recent detection for save-as-profile use. */
@@ -93,7 +94,7 @@ class LiveViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            faceDetector.initialize()
+            fullFrameAnalyzer.initialize()
         }
     }
 
@@ -181,8 +182,9 @@ class LiveViewModel @Inject constructor(
                             resolveDetectionType(detection)
                         }
 
-                        val label = if (matchResult.isMatch && matchResult.profile != null) {
-                            matchResult.profile.name
+                        val currentProfile = matchResult.profile
+                        val label = if (matchResult.isMatch && currentProfile != null) {
+                            currentProfile.name
                         } else {
                             detection.label
                         }
@@ -294,6 +296,7 @@ class LiveViewModel @Inject constructor(
         saveAlertUseCase(alert)
         feedbackProvider.triggerVibration(severity)
         feedbackProvider.triggerSound(severity)
+        feedbackProvider.triggerNotification(alert.title, alert.description, severity)
     }
 
     private fun updateFps() {
@@ -402,8 +405,7 @@ class LiveViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
-        frameAnalyzer.close()
         cameraExecutor.shutdown()
-        faceDetector.close()
+        fullFrameAnalyzer.close()
     }
 }

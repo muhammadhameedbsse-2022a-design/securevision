@@ -1,18 +1,21 @@
 package com.securevision.feature.live
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
+import android.media.RingtoneManager
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import androidx.core.app.NotificationCompat
 import com.securevision.core.domain.model.AlertSeverity
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Provides haptic and (optional) audible feedback when an alert fires.
- * Sound playback is left as a hook – callers can set [onSoundRequested]
- * to plug in their own [android.media.MediaPlayer] or notification tone.
+ * Provides haptic, audible, and push notification feedback when an alert fires.
  */
-class AlertFeedbackProvider(context: Context) {
+class AlertFeedbackProvider(private val context: Context) {
 
     private val vibrator: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         val manager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
@@ -22,11 +25,28 @@ class AlertFeedbackProvider(context: Context) {
         context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
     }
 
-    /**
-     * Optional callback invoked when the engine determines that an audible
-     * alert should be played.  Hook your preferred sound mechanism here.
-     */
-    var onSoundRequested: ((AlertSeverity) -> Unit)? = null
+    private val notificationManager =
+        context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+
+    private val notificationIdCounter = AtomicInteger(1000)
+
+    init {
+        createNotificationChannel()
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "SecureVision Alerts",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Real-time detection alerts from SecureVision"
+                enableVibration(false) // We handle vibration ourselves
+            }
+            notificationManager?.createNotificationChannel(channel)
+        }
+    }
 
     /** Triggers vibration pattern appropriate to the alert severity. */
     fun triggerVibration(severity: AlertSeverity) {
@@ -54,8 +74,42 @@ class AlertFeedbackProvider(context: Context) {
         }
     }
 
-    /** Triggers the optional sound hook. */
+    /** Plays the default notification/alarm sound based on severity. */
     fun triggerSound(severity: AlertSeverity) {
-        onSoundRequested?.invoke(severity)
+        val ringtoneType = when (severity) {
+            AlertSeverity.CRITICAL, AlertSeverity.HIGH -> RingtoneManager.TYPE_ALARM
+            else -> RingtoneManager.TYPE_NOTIFICATION
+        }
+        try {
+            val uri = RingtoneManager.getDefaultUri(ringtoneType)
+            val ringtone = RingtoneManager.getRingtone(context, uri)
+            ringtone?.play()
+        } catch (_: Exception) {
+            // Silently ignore if sound cannot be played
+        }
+    }
+
+    /** Posts a system push notification for the alert. */
+    fun triggerNotification(title: String, description: String, severity: AlertSeverity) {
+        val priority = when (severity) {
+            AlertSeverity.CRITICAL -> NotificationCompat.PRIORITY_MAX
+            AlertSeverity.HIGH -> NotificationCompat.PRIORITY_HIGH
+            AlertSeverity.MEDIUM -> NotificationCompat.PRIORITY_DEFAULT
+            AlertSeverity.LOW -> NotificationCompat.PRIORITY_LOW
+        }
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle(title)
+            .setContentText(description)
+            .setPriority(priority)
+            .setAutoCancel(true)
+            .build()
+
+        notificationManager?.notify(notificationIdCounter.getAndIncrement(), notification)
+    }
+
+    companion object {
+        private const val CHANNEL_ID = "securevision_alerts"
     }
 }
