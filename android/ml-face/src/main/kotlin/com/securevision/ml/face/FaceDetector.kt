@@ -31,7 +31,7 @@ class FaceDetector(
         if (isInitialized) return
 
         val options = FaceDetectorOptions.Builder()
-            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
+            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
             .setLandmarkMode(
                 if (enableLandmarks) FaceDetectorOptions.LANDMARK_MODE_ALL
                 else FaceDetectorOptions.LANDMARK_MODE_NONE
@@ -40,7 +40,7 @@ class FaceDetector(
                 if (enableClassifications) FaceDetectorOptions.CLASSIFICATION_MODE_ALL
                 else FaceDetectorOptions.CLASSIFICATION_MODE_NONE
             )
-            .setMinFaceSize(0.1f)
+            .setMinFaceSize(0.15f)
             .enableTracking()
             .build()
 

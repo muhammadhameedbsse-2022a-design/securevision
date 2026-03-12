@@ -117,7 +117,7 @@ class FrameAnalyzer(
 }
 
 /**
- * Convert an ImageProxy (YUV_420_888) to an ARGB [Bitmap].
+ * Convert an ImageProxy (YUV_420_888) to an ARGB [Bitmap], downscaled for performance.
  */
 private fun ImageProxy.toBitmap420(): Bitmap? {
     val yBuffer = planes[0].buffer
@@ -135,7 +135,22 @@ private fun ImageProxy.toBitmap420(): Bitmap? {
 
     val yuvImage = YuvImage(nv21, ImageFormat.NV21, width, height, null)
     val out = ByteArrayOutputStream()
-    yuvImage.compressToJpeg(Rect(0, 0, width, height), 85, out)
+    yuvImage.compressToJpeg(Rect(0, 0, width, height), 50, out)
     val bytes = out.toByteArray()
-    return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+    val original = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
+    return downscaleBitmap(original, MAX_ANALYSIS_DIM)
 }
+
+private fun downscaleBitmap(bitmap: Bitmap, maxDim: Int): Bitmap {
+    val w = bitmap.width
+    val h = bitmap.height
+    if (w <= maxDim && h <= maxDim) return bitmap
+    val scale = maxDim.toFloat() / maxOf(w, h)
+    val newW = (w * scale).toInt().coerceAtLeast(1)
+    val newH = (h * scale).toInt().coerceAtLeast(1)
+    val scaled = Bitmap.createScaledBitmap(bitmap, newW, newH, true)
+    if (scaled != bitmap) bitmap.recycle()
+    return scaled
+}
+
+private const val MAX_ANALYSIS_DIM = 480

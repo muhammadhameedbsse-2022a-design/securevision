@@ -79,10 +79,12 @@ fun ProfilesScreen(
     if (showAddProfileDialog) {
         AddProfileDialog(
             onDismiss = { showAddProfileDialog = false },
-            onSave = { name, description, isWatchlisted ->
+            onSave = { name, description, age, gender, isWatchlisted ->
                 viewModel.saveProfile(
                     name = name,
                     description = description,
+                    age = age,
+                    gender = gender,
                     isWatchlisted = isWatchlisted
                 )
                 showAddProfileDialog = false
@@ -241,6 +243,17 @@ private fun ProfileCard(
                         maxLines = 1
                     )
                 }
+                val profileDetails = buildList {
+                    profile.age?.let { add("Age: $it") }
+                    profile.gender?.let { add(it) }
+                }
+                if (profileDetails.isNotEmpty()) {
+                    Text(
+                        text = profileDetails.joinToString(" • "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Text(
                     text = "Access: ${profile.accessLevel.name}",
                     style = MaterialTheme.typography.labelSmall,
@@ -269,10 +282,12 @@ private fun ProfileCard(
 @Composable
 private fun AddProfileDialog(
     onDismiss: () -> Unit,
-    onSave: (name: String, description: String, isWatchlisted: Boolean) -> Unit
+    onSave: (name: String, description: String, age: Int?, gender: String?, isWatchlisted: Boolean) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
+    var ageText by remember { mutableStateOf("") }
+    var gender by remember { mutableStateOf("") }
     var isWatchlisted by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -294,6 +309,20 @@ private fun AddProfileDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+                OutlinedTextField(
+                    value = ageText,
+                    onValueChange = { ageText = it },
+                    label = { Text("Age (optional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = gender,
+                    onValueChange = { gender = it },
+                    label = { Text("Gender (optional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(
                         checked = isWatchlisted,
@@ -308,7 +337,15 @@ private fun AddProfileDialog(
         },
         confirmButton = {
             Button(
-                onClick = { onSave(name.trim(), description.trim(), isWatchlisted) },
+                onClick = {
+                    onSave(
+                        name.trim(),
+                        description.trim(),
+                        ageText.trim().toIntOrNull(),
+                        gender.trim().ifBlank { null },
+                        isWatchlisted
+                    )
+                },
                 enabled = name.isNotBlank()
             ) {
                 Text("Save")

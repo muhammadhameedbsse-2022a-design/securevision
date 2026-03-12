@@ -23,7 +23,6 @@ import com.securevision.core.domain.usecase.MatchFaceUseCase
 import com.securevision.core.domain.usecase.SaveAlertUseCase
 import com.securevision.core.domain.usecase.SaveDetectionEventUseCase
 import com.securevision.core.domain.usecase.SaveProfileUseCase
-import com.securevision.ml.common.BoundingBox
 import com.securevision.ml.common.Detection
 import com.securevision.ml.common.DetectionResult
 import com.securevision.ml.common.FaceEmbeddingGenerator
@@ -36,6 +35,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import android.util.Size
 import java.util.concurrent.Executors
 import javax.inject.Inject
 
@@ -119,6 +119,8 @@ class LiveViewModel @Inject constructor(
 
         val imageAnalysis = ImageAnalysis.Builder()
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+            .setTargetResolution(Size(640, 480))
+            .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
             .build()
             .also { analysis ->
                 analysis.setAnalyzer(cameraExecutor, frameAnalyzer)
@@ -149,11 +151,10 @@ class LiveViewModel @Inject constructor(
                     detections = result.detections,
                     minConfidence = faceDetector.confidenceThreshold
                 )
-                val boxes = DetectionMapper.toBoundingBoxes(filtered)
                 val processingTime = System.currentTimeMillis() - startTime
 
                 updateFps()
-                _uiState.update { it.copy(detections = boxes) }
+                _uiState.update { it.copy(detections = filtered) }
 
                 // Persist detection events and trigger alerts
                 viewModelScope.launch {

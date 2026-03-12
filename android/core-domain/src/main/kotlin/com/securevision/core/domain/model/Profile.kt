@@ -12,6 +12,9 @@ data class Profile(
     val accessLevel: AccessLevel = AccessLevel.NONE,
     val createdAt: Long,
     val updatedAt: Long,
+    val age: Int? = null,
+    val gender: String? = null,
+    val photoURI: String? = null,
     val metadata: Map<String, String> = emptyMap(),
     val embedding: FloatArray? = null
 ) {
@@ -21,7 +24,9 @@ data class Profile(
         return id == other.id && name == other.name && description == other.description &&
             imagePath == other.imagePath && isWatchlisted == other.isWatchlisted &&
             accessLevel == other.accessLevel && createdAt == other.createdAt &&
-            updatedAt == other.updatedAt && metadata == other.metadata &&
+            updatedAt == other.updatedAt && age == other.age &&
+            gender == other.gender && photoURI == other.photoURI &&
+            metadata == other.metadata &&
             embedding.contentEquals(other.embedding)
     }
 
@@ -34,6 +39,9 @@ data class Profile(
         result = 31 * result + accessLevel.hashCode()
         result = 31 * result + createdAt.hashCode()
         result = 31 * result + updatedAt.hashCode()
+        result = 31 * result + (age ?: 0)
+        result = 31 * result + (gender?.hashCode() ?: 0)
+        result = 31 * result + (photoURI?.hashCode() ?: 0)
         result = 31 * result + metadata.hashCode()
         result = 31 * result + (embedding?.contentHashCode() ?: 0)
         return result
