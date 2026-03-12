@@ -58,9 +58,10 @@ class FaceFrameAnalyzer(
         }
     }
 
-    // ImageProxy.toBitmap() via YUV→NV21→JPEG conversion.
-    // Uses YuvImage which is marked deprecated but remains the simplest
-    // way to convert CameraX YUV_420_888 frames without a third-party library.
+    fun close() {
+        isEnabled = false
+    }
+
     @Suppress("DEPRECATION")
     private fun ImageProxy.toBitmap(): Bitmap? {
         val yBuffer = planes[0].buffer
@@ -75,8 +76,25 @@ class FaceFrameAnalyzer(
         uBuffer.get(nv21, ySize + vSize, uSize)
         val yuvImage = YuvImage(nv21, ImageFormat.NV21, width, height, null)
         val out = ByteArrayOutputStream()
-        yuvImage.compressToJpeg(Rect(0, 0, width, height), 50, out)
+        yuvImage.compressToJpeg(Rect(0, 0, width, height), 40, out)
         val bytes = out.toByteArray()
-        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        val original = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
+        return downscale(original, MAX_DIMENSION)
+    }
+
+    private fun downscale(bitmap: Bitmap, maxDim: Int): Bitmap {
+        val w = bitmap.width
+        val h = bitmap.height
+        if (w <= maxDim && h <= maxDim) return bitmap
+        val scale = maxDim.toFloat() / maxOf(w, h)
+        val newW = (w * scale).toInt().coerceAtLeast(1)
+        val newH = (h * scale).toInt().coerceAtLeast(1)
+        val scaled = Bitmap.createScaledBitmap(bitmap, newW, newH, true)
+        if (scaled != bitmap) bitmap.recycle()
+        return scaled
+    }
+
+    companion object {
+        private const val MAX_DIMENSION = 480
     }
 }

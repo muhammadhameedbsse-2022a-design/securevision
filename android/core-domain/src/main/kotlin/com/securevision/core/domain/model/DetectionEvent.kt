@@ -13,6 +13,8 @@ data class DetectionEvent(
     val label: String,
     val thumbnailPath: String? = null,
     val processingTimeMs: Long = 0L,
+    val age: Int? = null,
+    val gender: String? = null,
     val metadata: Map<String, String> = emptyMap()
 )
 

@@ -77,6 +77,8 @@ class ProfilesViewModel @Inject constructor(
     fun saveProfile(
         name: String,
         description: String = "",
+        age: Int? = null,
+        gender: String? = null,
         embedding: FloatArray? = null,
         isWatchlisted: Boolean = false
     ) {
@@ -90,6 +92,8 @@ class ProfilesViewModel @Inject constructor(
                     accessLevel = AccessLevel.STANDARD,
                     createdAt = now,
                     updatedAt = now,
+                    age = age,
+                    gender = gender,
                     embedding = embedding
                 )
                 saveProfileUseCase(profile)

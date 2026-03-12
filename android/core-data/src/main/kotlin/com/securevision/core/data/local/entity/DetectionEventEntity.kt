@@ -26,6 +26,8 @@ data class DetectionEventEntity(
     val label: String,
     val thumbnailPath: String?,
     val processingTimeMs: Long,
+    val age: Int? = null,
+    val gender: String? = null,
     val metadataJson: String
 ) {
     fun toDomain(): DetectionEvent {
@@ -52,6 +54,8 @@ data class DetectionEventEntity(
             label = label,
             thumbnailPath = thumbnailPath,
             processingTimeMs = processingTimeMs,
+            age = age,
+            gender = gender,
             metadata = metadata
         )
     }
@@ -70,6 +74,8 @@ data class DetectionEventEntity(
             label = event.label,
             thumbnailPath = event.thumbnailPath,
             processingTimeMs = event.processingTimeMs,
+            age = event.age,
+            gender = event.gender,
             metadataJson = Gson().toJson(event.metadata)
         )
     }

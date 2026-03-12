@@ -203,6 +203,17 @@ private fun DetectionEventCard(event: DetectionEvent) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                val personDetails = buildList {
+                    event.age?.let { add("Age: $it") }
+                    event.gender?.let { add(it) }
+                }
+                if (personDetails.isNotEmpty()) {
+                    Text(
+                        text = personDetails.joinToString(" • "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
             // Confidence badge
             Text(

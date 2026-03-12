@@ -17,7 +17,7 @@ import com.securevision.core.data.local.entity.ProfileEntity
         DetectionEventEntity::class,
         ProfileEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 @TypeConverters(MapConverter::class)

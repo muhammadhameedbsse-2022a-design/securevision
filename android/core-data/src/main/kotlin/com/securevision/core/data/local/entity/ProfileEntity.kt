@@ -18,6 +18,9 @@ data class ProfileEntity(
     val accessLevel: String,
     val createdAt: Long,
     val updatedAt: Long,
+    val age: Int? = null,
+    val gender: String? = null,
+    val photoURI: String? = null,
     val metadataJson: String = "{}",
     val embeddingData: String? = null
 ) {
@@ -38,6 +41,9 @@ data class ProfileEntity(
             accessLevel = AccessLevel.valueOf(accessLevel),
             createdAt = createdAt,
             updatedAt = updatedAt,
+            age = age,
+            gender = gender,
+            photoURI = photoURI,
             metadata = metadata,
             embedding = embeddingData?.toFloatArray()
         )
@@ -55,6 +61,9 @@ data class ProfileEntity(
                 accessLevel = profile.accessLevel.name,
                 createdAt = profile.createdAt,
                 updatedAt = profile.updatedAt,
+                age = profile.age,
+                gender = profile.gender,
+                photoURI = profile.photoURI,
                 metadataJson = converter.fromMap(profile.metadata),
                 embeddingData = profile.embedding?.toStorageString()
             )
